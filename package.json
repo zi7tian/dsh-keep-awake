@@ -1,0 +1,59 @@
+{
+  "name": "dsh-keep-awake",
+  "version": "0.4.0",
+  "type": "module",
+  "description": "Keep the DSH host awake during active tasks with native power assertions.",
+  "license": "MIT",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "wake-lock"
+  ],
+  "meta": {
+    "title": "任务保活",
+    "description": "任务运行时自动保持 DSH 主机亮屏、防止休眠，任务结束后释放。"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE",
+    "native"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  },
+  "dependencies": {
+    "koffi": "3.3.2"
+  },
+  "homepage": "https://github.com/zi7tian/dsh-keep-awake#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zi7tian/dsh-keep-awake.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zi7tian/dsh-keep-awake/issues"
+  },
+  "author": "zi7tian"
+}
