@@ -171,6 +171,7 @@ window.__ModuleLoader__.load({
           inlineTarget ? ReactDOM.createPortal(icon, inlineTarget) : icon,
           open && ReactDOM.createPortal(React.createElement('div', {
             ref: panel, id: panelId, role: 'dialog', 'aria-label': t('title'), style: {
+              opacity: 0.92,
               position: 'fixed', ...position, zIndex: 1000, width: '320px', maxWidth: 'calc(100vw - 16px)',
               maxHeight: 'calc(100dvh - 80px)', overflowY: 'auto', boxSizing: 'border-box', padding: '14px', lineHeight: 1.6,
               fontSize: '12px', color: 'var(--dsw-alias-label-primary)', background: 'var(--dsw-specific-menu)',

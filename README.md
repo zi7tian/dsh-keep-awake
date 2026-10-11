@@ -14,6 +14,12 @@ DeepSeek Harness 主机保活插件：AI 任务运行时自动保持主机亮屏
 
 ## 安装方法
 
+### 从 npm 安装（推荐）
+
+```sh
+dsh plugin --profile web add dsh-keep-awake
+```
+
 ### 从 GitHub 安装
 
 ```sh
