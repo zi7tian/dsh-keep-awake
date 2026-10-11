@@ -1,5 +1,5 @@
 {
-  "name": "dsh-keep-awake",
+  "name": "@zi7tian/dsh-keep-awake",
   "version": "0.4.1",
   "type": "module",
   "description": "Keep the DSH host awake during active tasks with native power assertions.",

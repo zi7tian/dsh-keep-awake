@@ -9,7 +9,7 @@ const patch = readFileSync(new URL('cordis.patch.yml', root), 'utf8');
 const client = readFileSync(new URL('client.js', root), 'utf8');
 
 test('bundle uses exact package name so DSH discovers both host and client', () => {
-  const name = patch.match(/^\s+name:\s*(\S+)\s*$/m)?.[1];
+  const name = patch.match(/^\s+name:\s*["']?([^\s"']+)["']?\s*$/m)?.[1];
   assert.equal(name, manifest.name, 'subpath names silently disable DSH client discovery');
   assert.equal(manifest.dsh.client.platform, 'web');
   for (const entry of ['.', './client']) {

@@ -1,7 +1,7 @@
 // The client only displays and controls host protection. Power assertions
 // belong to the host, independently of this page's lifetime or visibility.
 window.__ModuleLoader__.load({
-  id: 'dsh-keep-awake',
+  id: '@zi7tian/dsh-keep-awake',
   factory(require) {
     const React = require('react');
     const ReactDOM = require('react-dom');
