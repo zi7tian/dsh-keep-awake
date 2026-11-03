@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { createNativeManager } from '../native/manager.js';
-import { acquireWindows, acquireMac } from '../native/adapters.js';
+import { acquireWindows, acquireMac, acquireLinux } from '../native/adapters.js';
+import { apply } from '../index.js';
 
 function harness() {
   const children = [], timers = new Map(); let id = 0;
@@ -12,6 +13,7 @@ function harness() {
     spawnProcess(executable, args, options) {
       assert.equal(options.shell, false); assert.ok(args[0].endsWith('worker.js'));
       const child = new EventEmitter(); child.stdout = new EventEmitter(); child.stdin = new EventEmitter();
+      child.stdout.setEncoding = () => {};
       child.ended = false; child.killed = false;
       child.stdin.end = () => { child.ended = true; };
       child.kill = () => { child.killed = true; };
@@ -44,6 +46,16 @@ test('crash backs off, partial results are honest, disable cancels retries', () 
   h.manager.setEnabled(false); assert.equal(h.children[1].ended, true);
   h.children[1].emit('exit', 0); h.manager.dispose();
 });
+test('successful start resets crash backoff; signal exits are reported', () => {
+  const h = harness(); h.manager.update(1);
+  const has = delay => [...h.timers.values()].some(value => value.delay === delay);
+  const fire = delay => { const [key, value] = [...h.timers].find(([, timer]) => timer.delay === delay); h.timers.delete(key); value.callback(); };
+  h.children[0].emit('exit', 1); fire(1000);
+  h.children[1].emit('exit', 1); assert.ok(has(2000)); fire(2000);
+  h.ready(h.children[2]); h.children[2].emit('exit', null, 'SIGKILL');
+  assert.equal(h.manager.snapshot().error, 'Native helper exited (SIGKILL)'); assert.ok(has(1000));
+  h.manager.dispose();
+});
 test('startup timeout terminates stuck helper; unload cannot reacquire', () => {
   const h = harness(); h.manager.update(1);
   const startup = [...h.timers].find(([, value]) => value.delay === 15000);
@@ -74,4 +86,43 @@ test('macOS releases prior assertion when second assertion fails', () => {
     IOPMAssertionRelease: id => released.push(id),
   });
   assert.throws(() => acquireMac(k), /refused/); assert.deepEqual(released, [7]); assert.equal(freed.length, 4);
+});
+test('Linux keeps display inhibit when logind refuses, detects restarts, and releases everything', () => {
+  const calls = [], buses = []; let owner = ':1.5';
+  const k = { ...fakeKoffi({
+    dbus_bus_get_private: type => { const bus = { type }; buses.push(bus); return bus; },
+    dbus_connection_set_exit_on_disconnect: (_, enabled) => assert.equal(enabled, 0),
+    dbus_connection_close: bus => { bus.closed = true; }, dbus_connection_unref: bus => { bus.unref = true; },
+    dbus_message_new_method_call: (dest, path, iface, method) => ({ path, method, args: [] }),
+    dbus_message_append_args: (message, ...args) => { message.args.push(...args.filter(Array.isArray).map(value => value[0])); return 1; },
+    dbus_connection_send_with_reply_and_block: (bus, message) => {
+      calls.push(`${message.method} ${message.args.join(',')}`); return message.path === '/org/freedesktop/login1' ? null : message;
+    },
+    dbus_message_get_args: (reply, _, type, outType, result) => { result[0] = reply.method === 'GetNameOwner' ? owner : 42; return 1; },
+    dbus_message_unref: () => {},
+  }), out: value => value };
+  const lease = acquireLinux(k);
+  assert.equal(lease.report.display, true); assert.equal(lease.report.sleep, false);
+  assert.match(lease.report.warnings[0], /login1\.Manager\.Inhibit/);
+  lease.check(); owner = ':1.9'; assert.throws(() => lease.check(), /restarted/);
+  lease.release();
+  assert.ok(calls.includes('UnInhibit 42')); assert.ok(buses.length === 2 && buses.every(bus => bus.closed && bus.unref));
+});
+test('host endpoint rejects non-JSON writes and counts running agents', async () => {
+  const handlers = {}, disposers = []; let route;
+  apply({
+    effect: callback => disposers.push(callback()), on: (name, callback) => { handlers[name] = callback; },
+    agents: { list: () => [] }, connection: { fetch: { register: value => { route = value; } } },
+  });
+  const url = 'http://dsh.test/api/keep-awake/native';
+  const post = type => route.fetch(new Request(url, { method: 'POST', headers: { 'Content-Type': type }, body: '{"enabled":false}' }));
+  assert.equal((await post('text/plain')).status, 415);
+  assert.equal((await route.fetch(new Request(url))).headers.get('cache-control'), 'no-store');
+  assert.equal((await (await post('application/json; charset=utf-8')).json()).enabled, false);
+  const a = {}, b = { status: 'running' };
+  handlers['agent/status']({ agent: a, status: 'running' }); handlers['agent/created']({ agent: b });
+  handlers['agent/disposed']({ agent: a });
+  const snapshot = await (await route.fetch(new Request(url))).json();
+  assert.equal(snapshot.count, 1); assert.equal(snapshot.status, 'disabled');
+  for (const dispose of disposers) dispose();
 });

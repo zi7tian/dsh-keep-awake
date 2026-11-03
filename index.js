@@ -19,6 +19,9 @@ export function apply(ctx) {
     path: '/api/keep-awake/native', methods: ['GET', 'POST'], requestBody: 'buffered',
     async fetch(request) {
       if (request.method === 'POST') {
+        // A JSON content type forces a CORS preflight, so cross-site forms cannot toggle protection.
+        const type = request.headers.get('content-type')?.split(';')[0].trim().toLowerCase();
+        if (type !== 'application/json') return new Response('Content-Type must be application/json', { status: 415 });
         let body;
         try { body = await request.json(); } catch { return new Response('Invalid JSON', { status: 400 }); }
         if (typeof body?.enabled !== 'boolean') return new Response('enabled must be boolean', { status: 400 });

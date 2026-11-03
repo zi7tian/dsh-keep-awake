@@ -8,7 +8,7 @@ window.__ModuleLoader__.load({
     const NS = 'dsh-keep-awake';
     const DICTS = {
       zh: {
-        title: '任务亮屏', close: '关闭面板', native: '主机保活',
+        title: '任务保活', close: '关闭面板', native: '主机保活',
         idle: '保活待命', active: '主机保活中', requesting: '正在申请保活',
         disabled: '保活已关闭', partial: '部分保活生效', error: '保活失败，稍后自动重试',
         unavailable: '暂时无法获取主机状态', count: '运行任务：{count}',
@@ -67,21 +67,28 @@ window.__ModuleLoader__.load({
         React.useEffect(() => {
           const abort = new AbortController();
           nativeLife.current = abort;
-          let timer;
+          let timer, polling = false;
+          // Poll only while the page is visible; resume immediately when it returns.
           async function refresh() {
+            clearTimeout(timer); timer = null;
+            if (polling || abort.signal.aborted || document.hidden) return;
             if (nativeMutation.current) {
               timer = setTimeout(refresh, 5000);
               return;
             }
+            polling = true;
             const revision = ++nativeRequest.current;
             try {
               const value = await requestStatus(abort.signal);
               if (!abort.signal.aborted && revision === nativeRequest.current) setNative(value);
             } catch { if (!abort.signal.aborted && revision === nativeRequest.current) setNative(null); }
-            if (!abort.signal.aborted) timer = setTimeout(refresh, 5000);
+            finally { polling = false; }
+            if (!abort.signal.aborted && !document.hidden) timer = setTimeout(refresh, 5000);
           }
+          const resume = () => { if (!document.hidden) void refresh(); };
+          document.addEventListener('visibilitychange', resume);
           void refresh();
-          return () => { abort.abort(); clearTimeout(timer); };
+          return () => { abort.abort(); clearTimeout(timer); document.removeEventListener('visibilitychange', resume); };
         }, []);
         async function toggleNative() {
           if (!native || nativeMutation.current) return;

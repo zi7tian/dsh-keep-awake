@@ -44,7 +44,9 @@ export function createNativeManager({ spawnProcess = spawn, schedule = setTimeou
       retryLater();
     };
     worker.on('error', error => failed(error.message));
-    worker.once('exit', code => failed(`Native helper exited (${code})`));
+    worker.once('exit', (code, signal) => failed(`Native helper exited (${signal ?? code})`));
+    // Decode as a stream so multibyte text split across chunks stays intact.
+    worker.stdout.setEncoding('utf8');
     let buffer = '';
     worker.stdout.on('data', chunk => {
       if (child !== worker) return;
@@ -61,6 +63,7 @@ export function createNativeManager({ spawnProcess = spawn, schedule = setTimeou
               failed('Invalid native helper capabilities'); return;
             }
             if (startup) unschedule(startup); startup = null;
+            failures = 0;
             const { kind, ...report } = message;
             state = { ...report, status: message.display && message.sleep ? 'active' : 'partial' };
           }
